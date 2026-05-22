@@ -1,6 +1,8 @@
 #include <torch/extension.h>
 #include <torch/library.h>
 #include <torch/version.h>
+#include <tuple>
+#include <vector>
 #include <torch_npu/csrc/core/npu/NPUStream.h>
 #include <torch_npu/csrc/framework/OpCommand.h>
 #include <torch_npu/csrc/npu/Module.h>
@@ -241,11 +243,11 @@ std::tuple<at::Tensor, at::Tensor> npu_lightning_indexer_meta(
     }
     // construct the output tensor
     at::Tensor lightning_indexer_output = at::empty(output_size, query.options().dtype(at::kInt));
-    at::Tensor lightning_indexer_value = at::empty(output_size, query.options().dtype(at::kInt));
-    return lightning_indexer_output, lightning_indexer_value;
+    at::Tensor lightning_indexer_value = at::empty(output_size, query.options().dtype(query.dtype()));
+    return std::make_tuple(lightning_indexer_output, lightning_indexer_value);
 }
 
-at::Tensor npu_sparse_flash_attention_meta(
+std::tuple<at::Tensor, at::Tensor> npu_sparse_flash_attention_meta(
     const at::Tensor &query, const at::Tensor &key, const at::Tensor &value,
     const at::Tensor &sparse_indices, double scale_value, int64_t sparse_block_size,
     const c10::optional<at::Tensor> &block_table,
@@ -256,13 +258,22 @@ at::Tensor npu_sparse_flash_attention_meta(
     c10::string_view layout_kv,
     int64_t sparse_mode)
 {
-    std::string layout_query_str = std::string(layout_query);
     for (size_t i = 0; i < query.sizes().size(); i++) {
         TORCH_CHECK(query.size(i) > 0, "All values within query's shape should be greater "
                                        "than 0, but shape[", i, "] is ", query.size(i));
     }
     at::Tensor output = at::empty(query.sizes(), query.options().dtype(query.dtype()));
-    return output;
+    std::vector<int64_t> lse_size;
+    std::string layout_query_str = std::string(layout_query);
+    if (layout_query_str == "TND") {
+        TORCH_CHECK(query.dim() == 3, "TND query should be 3D, but got dim ", query.dim());
+        lse_size = {query.size(0), query.size(1)};
+    } else {
+        TORCH_CHECK(query.dim() == 4, "Non-TND query should be 4D, but got dim ", query.dim());
+        lse_size = {query.size(0), query.size(2), query.size(1)};
+    }
+    at::Tensor softmax_lse = at::empty(lse_size, query.options().dtype(at::kFloat));
+    return std::make_tuple(output, softmax_lse);
 }
 std::tuple<at::Tensor, at::Tensor> matmul_allreduce_add_rmsnorm_meta(
     const at::Tensor &x1,

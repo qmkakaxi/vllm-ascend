@@ -15,9 +15,12 @@
  */
 #ifndef LIGHTING_INDEXER_VLLM_TORCH_ADPT_H
 #define LIGHTING_INDEXER_VLLM_TORCH_ADPT_H
+#include <limits>
+#include <tuple>
+
 namespace vllm_ascend {
 
-at::Tensor npu_lightning_indexer(
+std::tuple<at::Tensor, at::Tensor> npu_lightning_indexer(
     const at::Tensor &query, const at::Tensor &key, const at::Tensor &weights,
     const c10::optional<at::Tensor> &actual_seq_lengths_query,
     const c10::optional<at::Tensor> &actual_seq_lengths_key,
@@ -25,6 +28,12 @@ at::Tensor npu_lightning_indexer(
     c10::string_view layout_key, int64_t sparse_count, int64_t sparse_mode, int64_t pre_tokens,
     int64_t next_tokens, bool return_value)
 {
+    static bool build_stamp_printed = false;
+    if (!build_stamp_printed) {
+        TORCH_WARN("vllm-ascend npu_lightning_indexer tuple-output build stamp: ", __DATE__, " ", __TIME__);
+        build_stamp_printed = true;
+    }
+
     // npu tensor max size
     constexpr int32_t SIZE = 8;
     constexpr int32_t DIM_0 = 0;
@@ -56,9 +65,8 @@ at::Tensor npu_lightning_indexer(
     // convert str
     char *query_layout_ptr = const_cast<char *>(query_layout_str.c_str());
     char *key_layout_ptr = const_cast<char *>(key_layout_str.c_str());
-    int64_t pre_tokens = 9223372036854775807;
-    int64_t next_tokens = 9223372036854775807;
-    bool return_value = true;
+    const int64_t effective_pre_tokens = pre_tokens < 0 ? std::numeric_limits<int64_t>::max() : pre_tokens;
+    const int64_t effective_next_tokens = next_tokens < 0 ? std::numeric_limits<int64_t>::max() : next_tokens;
     EXEC_NPU_CMD(
         aclnnLightningIndexerVllm,
         query,
@@ -71,12 +79,12 @@ at::Tensor npu_lightning_indexer(
         key_layout_ptr,
         sparse_count,
         sparse_mode,
-        pre_tokens,
-        next_tokens,
+        effective_pre_tokens,
+        effective_next_tokens,
         return_value,
         lightning_indexer_output,
         sparse_values_out);
-    return lightning_indexer_output;
+    return std::make_tuple(lightning_indexer_output, sparse_values_out);
 }
 }
 #endif

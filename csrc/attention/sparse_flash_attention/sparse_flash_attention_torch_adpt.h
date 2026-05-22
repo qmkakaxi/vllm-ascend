@@ -15,9 +15,12 @@
  */
 #ifndef SPARSE_FLASH_ATTENTION_TORCH_ADPT_H
 #define SPARSE_FLASH_ATTENTION_TORCH_ADPT_H
+#include <tuple>
+#include <vector>
+
 namespace vllm_ascend {
 
-at::Tensor npu_sparse_flash_attention(
+std::tuple<at::Tensor, at::Tensor> npu_sparse_flash_attention(
     const at::Tensor &query, const at::Tensor &key, const at::Tensor &value,
     const at::Tensor &sparse_indices, double scale_value, int64_t sparse_block_size,
     const c10::optional<at::Tensor> &block_table,
@@ -37,6 +40,15 @@ at::Tensor npu_sparse_flash_attention(
     }
     // construct the output tensor
     at::Tensor output = at::empty(query.sizes(), query.options().dtype(query.dtype()));
+    std::vector<int64_t> lse_size;
+    if (layout_query_str == "TND") {
+        TORCH_CHECK(query.dim() == 3, "TND query should be 3D, but got dim ", query.dim());
+        lse_size = {query.size(0), query.size(1)};
+    } else {
+        TORCH_CHECK(query.dim() == 4, "Non-TND query should be 4D, but got dim ", query.dim());
+        lse_size = {query.size(0), query.size(2), query.size(1)};
+    }
+    at::Tensor softmax_lse = at::zeros(lse_size, query.options().dtype(at::kFloat));
     // convert str
     char *layout_query_ptr = const_cast<char *>(layout_query_str.c_str());
     char *layout_kv_ptr = const_cast<char *>(layout_kv_str.c_str());
@@ -57,8 +69,9 @@ at::Tensor npu_sparse_flash_attention(
         layout_query_ptr,
         layout_kv_ptr,
         sparse_mode,
-        output);
-    return output;
+        output,
+        softmax_lse);
+    return std::make_tuple(output, softmax_lse);
 }    
 }
 #endif

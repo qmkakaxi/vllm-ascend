@@ -352,7 +352,7 @@ class AscendSFACPImpl(AscendSFAImpl):
     def _execute_sparse_flash_attention(
         self, ql_nope, q_pe, kv, key_rope, block_table, topk_indices, actual_seq_lengths_query, actual_seq_lengths_key
     ):
-        attn_output = torch.ops._C_ascend.npu_sparse_flash_attention(
+        attn_output, _ = torch.ops._C_ascend.npu_sparse_flash_attention(
             query=ql_nope,
             key=kv,
             value=kv,
@@ -525,7 +525,7 @@ class AscendSFACPImpl(AscendSFAImpl):
                 sparse_mode=3,
             )
         else:
-            topk_indices = torch.ops._C_ascend.npu_lightning_indexer(
+            topk_indices, _ = torch.ops._C_ascend.npu_lightning_indexer(
                 query=q,
                 key=key,
                 weights=weights,

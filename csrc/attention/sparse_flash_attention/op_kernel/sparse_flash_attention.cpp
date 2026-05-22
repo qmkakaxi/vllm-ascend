@@ -35,9 +35,11 @@ sparse_flash_attention(__gm__ uint8_t *query, __gm__ uint8_t *key, __gm__ uint8_
                        __gm__ uint8_t *sparseIndices, __gm__ uint8_t *blocktable,
                        __gm__ uint8_t *actualSeqLengthsQuery, __gm__ uint8_t *actualSeqLengthsKV,
                        __gm__ uint8_t* queryRope, __gm__ uint8_t* keyRope,
-                       __gm__ uint8_t *attentionOut, __gm__ uint8_t *workspace, __gm__ uint8_t *tiling)
+                       __gm__ uint8_t *attentionOut, __gm__ uint8_t *softmaxLse,
+                       __gm__ uint8_t *workspace, __gm__ uint8_t *tiling)
 {
     KERNEL_TASK_TYPE_DEFAULT(KERNEL_TYPE_MIX_AIC_1_2);
+    (void)softmaxLse;
 
     TPipe tPipe;
     __gm__ uint8_t *user = GetUserWorkspace(workspace);
