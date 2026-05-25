@@ -90,7 +90,7 @@ class TestAscendSFACPMetadataBuilder(TestBase):
 
         self.mock_cfg.speculative_config = None
 
-        self.patcher = patchx(
+        self.patcher = patch(
             "vllm.config.get_current_vllm_config",
             return_value=self.mock_cfg,
         )
